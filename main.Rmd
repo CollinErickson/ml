@@ -1,0 +1,76 @@
+## Abstract
+The following analysis is performed on data from HAR [1]. The goal of the study is to construct model to predict type of exercise from gyroscopes' and accelerometers' readings.
+
+I decide to use stochastic gradient boosting. It is more accurate for non-linear data than linear regression and faster than random forest and allows to fit model with multiple classes.
+
+Data is too dense so I decide to use only 10% of it. Also I chose only non-unique variables with high variance as predictors.
+
+The final model has accuracy about 90%.
+
+## Analysis
+
+### Setting up environment
+```{r}
+library(caret)
+set.seed(114)
+
+pml_write_files <- function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+```
+
+### Training data loading and processing
+```{r}
+data <- read.csv("pml-training.csv")
+# The dataset too big so I decided to reduce by sampling 10% of dataset
+data <- data[sample(1:length(data[,1]), length(data[,1])/10),]
+
+# The following vector of features has non-zero variance so I decided to use it for model fitting
+data <- data[c("roll_belt", "pitch_belt", "yaw_belt", "gyros_belt_x", "gyros_belt_y", "gyros_belt_z", "accel_belt_x", "accel_belt_y", "accel_belt_z", "magnet_belt_x", "magnet_belt_y", "magnet_belt_z", "roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm", "gyros_arm_x", "gyros_arm_y", "gyros_arm_z", "accel_arm_x", "accel_arm_y", "accel_arm_z", "magnet_arm_x", "magnet_arm_y", "magnet_arm_z", "total_accel_dumbbell", "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z", "accel_dumbbell_x", "accel_dumbbell_y", "accel_dumbbell_z", "magnet_dumbbell_x", "magnet_dumbbell_y", "magnet_dumbbell_z", "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm", "gyros_forearm_x", "gyros_forearm_y", "gyros_forearm_z", "accel_forearm_x", "accel_forearm_y", "accel_forearm_z", "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z", "classe")]
+data  <- data[complete.cases(data),]
+classes <- unlist(data["classe"]); data["classe"] <- NULL
+for (n in names(data)) {
+  data[n] <- as.numeric(unlist(data[n]))
+}
+data["classe"] <- classes
+```
+
+### Creating validation set
+```{r}
+# I prefer 80% of data for training and 20% of data for validation
+inTrain <- createDataPartition(y = data$classe, p = 0.8, list = FALSE)
+training <- data[inTrain,]
+testing <- data[-inTrain,]
+```
+
+### Model fitting
+```{r, results='hide'}
+plsFit <- train(training$classe ~ ., data = training, method = "gbm")
+```
+
+### Model diagnostics and validation
+```{r}
+confusionMatrix(predict(plsFit, newdata=testing), testing$classe)
+```
+
+### Testing data loading and processing
+```{r}
+pml_testing <- read.csv("pml-testing.csv")
+pml_testing <- pml_testing[c("roll_belt", "pitch_belt", "yaw_belt", "gyros_belt_x", "gyros_belt_y", "gyros_belt_z", "accel_belt_x", "accel_belt_y", "accel_belt_z", "magnet_belt_x", "magnet_belt_y", "magnet_belt_z", "roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm", "gyros_arm_x", "gyros_arm_y", "gyros_arm_z", "accel_arm_x", "accel_arm_y", "accel_arm_z", "magnet_arm_x", "magnet_arm_y", "magnet_arm_z", "total_accel_dumbbell", "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z", "accel_dumbbell_x", "accel_dumbbell_y", "accel_dumbbell_z", "magnet_dumbbell_x", "magnet_dumbbell_y", "magnet_dumbbell_z", "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm", "gyros_forearm_x", "gyros_forearm_y", "gyros_forearm_z", "accel_forearm_x", "accel_forearm_y", "accel_forearm_z", "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z")]
+pml_testing  <- pml_testing[complete.cases(pml_testing),]
+```
+
+### Getting answers for submission
+```{r}
+answers <- as.character(predict(plsFit, newdata=pml_testing))
+print(answers)
+pml_write_files(answers)
+```
+
+## Citation
+[1] Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
